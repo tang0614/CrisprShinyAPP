@@ -6,6 +6,8 @@
 #
 #    http://shiny.rstudio.com/
 #
+
+
 library(dplyr)
 library(tidyr)
 library(tibble)
@@ -15,37 +17,31 @@ library(shinyWidgets)
 library(shinythemes)
 library(shinycssloaders)
 library(scales)
-library(DT)
 library(treemap)
 library(gtools)
 library(highcharter)
 library(stringr)
 library(lexicon)
 library(visNetwork)
-library(httr)
-library(rdrop2)
-library(lubridate)
-library(ggvis)
 library(rsconnect)
-library(plotly)
-library(reshape2)
-library(webshot)
+library(networkD3)
+
 if (FALSE) {
     library(RSQLite)
     library(dbplyr)
 }
 library(shiny)
-df <- read.csv("sample.txt", header = TRUE,stringsAsFactors = FALSE)
+df <- read.csv("autophagy.txt", header = TRUE,stringsAsFactors = FALSE)
 
-default_gene = c('ALPP','CNN3')
+default_gene = c('ATG14','ATG101','ULK1')
 
 
 # Define UI for dataset viewer app ----
 ui <- fluidPage(
     
     # App title ----
-    titlePanel("Reactivity"),
-    
+    titlePanel("Autophagy Gene Correlation Network Analysis"),
+
     # Sidebar layout with input and output definitions ----
     sidebarLayout(
         
@@ -56,8 +52,24 @@ ui <- fluidPage(
             titlePanel("Title"),
             hr(),
             helpText("helpText"),
+            
+           
             fluidRow(
                 column(8, 
+                       radioButtons("corr", "Correlation:",
+                                    c("Positive" = "positive",
+                                      "Negative" = "negative",
+                                      "All" = "all"),
+                                    selected = "positive"),
+                       
+                )
+            ),
+            br(),
+            
+            fluidRow(
+                column(8, 
+                       
+                       
                        selectInput("gene", label = "Gene Symbol", 
                                    choices=mixedsort(as.vector(unique(df$Gene))), selected=default_gene,multiple=TRUE)
                        
@@ -71,8 +83,23 @@ ui <- fluidPage(
             br(),
             fluidRow(
                 column(8,
-                       selectInput("rank", label = "Rank", 
-                                   choices=c(1:1000), selected=3,multiple=FALSE)
+                       
+                       sliderInput("rank", "Rank:",
+                                   min = 0, max = 50,
+                                   value = 10)
+                      # selectInput("rank", label = "Rank", 
+                                   #choices=c(1:1000), selected=3,multiple=FALSE)
+                       
+                )
+            ),
+            
+            br(),
+           
+            fluidRow(
+                column(8,
+                       sliderInput("opacity", "Opacity for network", 0.6, min = 0.1,
+                                   max = 1, step = .1)
+                 
                        
                 )
             )
@@ -82,7 +109,6 @@ ui <- fluidPage(
         ),
         
         mainPanel(
-            
             fluidRow(
                 column(11,offset = 1,
                        helpText("For Heatmap: NaN values (missing values) are represented as empty boxes."),
@@ -91,10 +117,21 @@ ui <- fluidPage(
             ),
             
             fluidRow(
+                column(12,align="center",
+                       tabPanel("Simple Network", simpleNetworkOutput("simple"))
+                )
+            ),
+            
+            fluidRow(
                 column(11,offset = 1,
                        tableOutput('table')
                 )
             )
+            
+            
+            
+            
+            
             
         )
         
@@ -117,8 +154,26 @@ server <- function(input, output,session) {
         
     })
     
-    dataInput <- reactive({
+
+    
+    dataInput1 <- reactive({
         m<-df
+        if(input$corr == 'positive'){
+            m<-filter(m, Correlation >= 0)
+            return(m)
+            
+        }
+        else if(input$corr == 'negative'){
+            m<-filter(m, Correlation < 0)
+            return(m)
+            
+        }
+        else{return(m)}
+        
+    })
+    
+    dataInput2 <- reactive({
+        m<-dataInput1()
         list_1<-m$Gene
         sub_list1<- list_1 %in% input$gene
         
@@ -131,7 +186,7 @@ server <- function(input, output,session) {
     })
     
     dataSort <- reactive({
-        m<-dataInput()
+        m<-dataInput2()
         r <- input$rank
         
         if (is.null(input$rank)){
@@ -145,11 +200,20 @@ server <- function(input, output,session) {
 
  
         
-        m<-m[,c("Gene","Compound","Correlation")]
+        m<-subset(m, select = -c(X))
         
     })
     
     output$table <- renderTable(dataSort())
+    
+    output$simple <- renderSimpleNetwork({
+        m<- dataSort()
+        src <- m$Gene
+        target <- m$Gene2
+        networkData <- data.frame(src, target)
+        simpleNetwork(networkData, opacity = input$opacity)
+           # saveNetwork(file = 'Net1.html')
+    })
     
  
    
