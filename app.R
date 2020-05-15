@@ -25,6 +25,7 @@ library(lexicon)
 library(visNetwork)
 library(rsconnect)
 library(networkD3)
+library(magrittr)
 
 if (FALSE) {
     library(RSQLite)
@@ -54,7 +55,7 @@ ui <- fluidPage(
             helpText("Select the sign of pearson correlation."),
            
             fluidRow(
-                column(8, 
+                column(11, 
                        radioButtons("corr", "Correlation:",
                                     c("Positive" = "positive",
                                       "Negative" = "negative",
@@ -65,8 +66,7 @@ ui <- fluidPage(
             ),
             
             
-            
-            br(),
+ 
             fluidRow(
               column(11, 
                      helpText("Enter capitalized gene symbol separatd by space/new lines."),
@@ -74,22 +74,38 @@ ui <- fluidPage(
               ),
             
             ),
-            
 
-    
-            
-            br(),
             fluidRow(
-                column(11,
-                       helpText("Select the top n correlated genes for each selected gene above."),
-                       sliderInput("rank", "Rank:",
-                                   min = 1, max = 140,
-                                   value = 10)
+              column(11,
+                     helpText("Select the top n correlated genes for each selected gene above."),
+                     sliderInput("rank", "Rank:",
+                                 min = 1, max = 140,
+                                 value = 10)
                      
-                       
-                )
+                     
+              )
             ),
             
+
+            fluidRow(
+              column(11,
+                     helpText("Select the numeric value indicating either the strength of the node repulsion (negative value) or attraction (positive value)."),
+                     sliderInput("charge", "Charge:",
+                                 min = -500, max = 5,
+                                 value = -300)
+                     
+                     
+              )
+            ),
+            
+            helpText("Reflesh and submit the value you",
+                     "entered above."),
+            fluidRow(
+              column(11,
+                     submitButton("Submit", icon("refresh"))
+                     
+              )
+            ),
            
             
             br(),
@@ -99,10 +115,12 @@ ui <- fluidPage(
             fluidRow(
                 column(11, 
                
-                tags$p(HTML("<b>Dataset Description</b> :This DepMap release contains data from CRISPR knockout screens from project Achilles, as well as genomic characterization data from the CCLE project.
-                This Achilles dataset contains the results of genome-scale CRISPR knockout screens for 18,333 genes in 739 cell lines.<a href=\"https://depmap.org/portal/download/\">References</a>")),
+                tags$p(HTML("<b>Dataset Description</b> :This <a href=\"https://depmap.org/portal/download/\">DepMap release</a> contains data from CRISPR knockout screens from project Achilles, as well as genomic characterization data from the CCLE project.
+                This Achilles dataset contains the results of genome-scale CRISPR knockout screens for 18,333 genes in 739 cell lines")),
                 
             ))
+            
+            
             
      
             
@@ -114,77 +132,78 @@ ui <- fluidPage(
                
                 column(11,offset = 1,
                        h3('Network Visualization for Gene Correlations'),
-                      
-                       helpText("Click and drag nodes below to see in detail."),
-                       helpText("The width of links indicates the strengh of gene correlations. Thick line represents greater positive/negative correlations.")
+                       helpText("The width of links indicates the strengh of gene correlations. Thick line represents greater positive/negative correlations."),
+                       helpText("Use mouse to zoom in/out to change the size of the networks. ")
                 )
             ),
   
             fluidRow(
                
-                column(9,align="center",
-                       tabPanel("Force Network", forceNetworkOutput("force"))
-                ),
-                
-                
-               
-               column(2, 
-                         br(),
-                         br(),
-                         uiOutput("render_ui_genes")
+  
+               column(3, offset = 8,
+                         uiOutput("render_ui_genes"),
+                         downloadButton("downloadNet", "Download network below")
                          #conditionalPanel("output.show",  uiOutput("render_ui_genes"))
                 )
             ),
             
             fluidRow(
-                column(9,align="center",
-                       downloadButton("downloadV2", "Download above network")
-                       
-                )
+              
+              column(11,align="center",
+                     tabPanel("Force Network", forceNetworkOutput("force"))
+            ),
+              
+
+            
             ),
             
             
-            br(),
-            br(),
-            
-            br(),
-            br(),
-            
-            br(),
-            br(),
-            
            
-      
+            
+            
+            br(),
+            br(),
+            
+            br(),
+            hr(),
+            
+
 
             fluidRow(
                 column(4,offset = 1,
+                       
                        h3('Summary Table'),
-                       helpText("Click button to download the table.")
+                       helpText("Genes that are showing in the plot."),
+                       downloadButton("downloadData", "Download Table")
+                       
                 ),
                 
             
                 
                 column(4,offset = 3,
-                       h3('Missing Genes'),
-                       helpText("Genes that are not showing in the plot.")
+                       
+                       h3('Additional Info'),
+                       helpText("Genes that are not showing in the plot."),
+                       downloadButton("downloadMissingData", "Download Missing Genes")
                 )
               
                 
             ),
             br(),
+            br(),
             
            
            
             fluidRow(
-                column(5, offset = 1,
-                       tableOutput('table1'),
-                       downloadButton("downloadData", "Download Table")
+                column(4, offset = 1,
+                       tableOutput('table1')
+                       
                 ),
              
-                column(3,offset = 2,
+                column(4,offset = 3,
                        br(),
-                       verbatimTextOutput("value", placeholder = TRUE),
-                       downloadButton("downloadMissingData", "Download Missing Genes")
+                       verbatimTextOutput("value", placeholder = TRUE)
+                      
                 ),
                 
                 
@@ -203,12 +222,15 @@ ui <- fluidPage(
 # Define server logic to summarize and view selected dataset ----
 server <- function(input, output,session) {
   
+  
     input_genes<- reactive({
       g<-str_replace_all(input$caption, "[\r\n]" , " ")
       l<-unique(unlist(strsplit(g, split=" ")))
       l
       
     })
+  
+    
     
     missed_genes <- reactive({
       g<-input_genes()
@@ -300,7 +322,7 @@ server <- function(input, output,session) {
         m<-dataSort()
         m<-data.frame(unique_gene=union(m$Gene, m$Gene2))
         m$ID <- 0:(nrow(m)-1)
-        m$size <- 40
+        m$size <- 15
         m$group <- ifelse(m$unique_gene %in% src, "lions", "tigers")
         m<-subset(m, select = c(ID,unique_gene,size,group))
         m
@@ -340,47 +362,48 @@ server <- function(input, output,session) {
                      NodeID = "unique_gene",
                      Nodesize = "size",
                      Group = "group",
-                     fontSize = 15, # Font size
-                     linkDistance = networkD3::JS("function(d) { return Math.abs(d.value)/0.004;}"),
+                     fontSize = 10, # Font size
+                     linkDistance = networkD3::JS("function(d) { return 20*(1/Math.abs(d.value));}"),
                      linkWidth = networkD3::JS("function(d) { return 15*Math.abs(d.value); }"),
                      opacity = 0.8,
                      opacityNoHover = 0.8,
+                     zoom = TRUE,
+                     bounded = TRUE,
+                     charge = input$charge,
                      colourScale = JS(ColourScale))
     })
     
     vis2<-reactive({
+        ColourScale <- 'd3.scaleOrdinal()
+            .domain(["lions", "tigers"])
+           .range(["#D93434","#3FBFBF"]);'
+        
         l<-MisLinks()
         n<-MisNodes()
         
         
         MisLinks<-as.data.frame(l)
         MisNodes<-as.data.frame(n)
+        
         forceNetwork(Links = MisLinks, Nodes = MisNodes, Source = "source",
                      Target = "target", 
                      Value = "Correlation", 
                      NodeID = "unique_gene",
                      Nodesize = "size",
                      Group = "group",
-                     fontSize = 15, # Font size
-                     linkDistance = networkD3::JS("function(d) { return Math.abs(d.value)/0.004;}"),
+                     fontSize = 10, # Font size
+                     linkDistance = networkD3::JS("function(d) { return 20*(1/Math.abs(d.value));}"),
                      linkWidth = networkD3::JS("function(d) { return 15*Math.abs(d.value); }"),
                      opacity = 0.8,
                      opacityNoHover = 1,
-                     colourScale = JS(ColourScale))
+                     zoom = TRUE,
+                     charge = input$charge,
+                     colourScale = JS(ColourScale)) 
     })
-    
     
     
     
 
-    
-    vis1<-reactive({
-        m<- dataSort()
-        src <- m$Gene
-        target <- m$Gene2
-        networkData <- data.frame(src, target)
-        simpleNetwork(networkData, opacity = input$opacity)
-    })
     
     output$table1 <- renderTable(dataSort())
     
@@ -388,7 +411,7 @@ server <- function(input, output,session) {
     # Downloadable csv of selected dataset ----
     output$downloadData <- downloadHandler(
         filename = function() {
-            paste(dataSort(), ".csv", sep = "")
+            paste('table', ".csv", sep = "")
         },
         content = function(file) {
             write.csv(dataSort(), file, row.names = FALSE)
@@ -397,33 +420,28 @@ server <- function(input, output,session) {
     
     output$downloadMissingData <- downloadHandler(
       filename = function() {
-        paste(dataSort(), ".csv", sep = "")
+        paste('missingData', ".csv", sep = "")
       },
       content = function(file) {
         write.csv(missed_genes(), file, row.names = FALSE)
+        
       }
     )
     
-
-    
-    output$downloadV1 <- downloadHandler(
-        filename = function() {
-            'Net1.html'
-        },
-        content = function(file) {
-            saveNetwork(vis1(), file)
-        }
+    output$downloadNet <- downloadHandler(
+      filename = function() {
+        paste('network', ".html", sep = "")
+      },
+      content = function(file) {
+        saveNetwork(vis2(),file )
+        
+      }
     )
     
-    output$downloadV2 <- downloadHandler(
-        filename = function() {
-            'Net2.html'
-        },
-        content = function(file) {
-            saveNetwork(vis2(), file)
-        }
-    )
     
+    
+ 
+  
     
 
 

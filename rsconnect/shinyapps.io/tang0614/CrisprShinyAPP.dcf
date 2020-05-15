@@ -1,0 +1,12 @@
+name: CrisprShinyAPP
+title: CrisprShinyAPP
+username:
+account: tang0614
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2287561
+bundleId: 3138991
+url: https://tang0614.shinyapps.io/CrisprShinyAPP/
+when: 1589315611.31111
+asMultiple: FALSE
+asStatic: FALSE
