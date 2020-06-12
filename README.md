@@ -6,3 +6,5 @@ This Achilles dataset contains the results of genome-scale CRISPR knockout scree
 * Description:
 This app visualizes gene correlations in terms of cell viability measured in cell denpendency. 
 
+* Deployed here: https://tang0614.shinyapps.io/depmapCrisprNetworkVis/
+
